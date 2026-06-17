@@ -112,6 +112,15 @@ export default class TableRenderer {
       );
     }
 
+    if (actionBar?.includes('discard')) {
+      const hint = selectedIndex >= 0 ? '已选中手牌，点击「出牌」确认' : '先点选手牌，再点「出牌」确认';
+      drawText(ctx, hint, w / 2, handY - 8, {
+        size: 12,
+        color: selectedIndex >= 0 ? theme.goldLight : 'rgba(255,255,255,0.58)',
+        align: 'center',
+      });
+    }
+
     const cur = snapshot.players[snapshot.current];
     if (cur) {
       glassPanel(ctx, 12, h - 52, 160, 36, 8);
@@ -180,7 +189,20 @@ export default class TableRenderer {
 
     const pw = 96;
     const ph = 72;
-    glassPanel(ctx, pos.x - (pos.align === 'center' ? pw / 2 : 0), pos.y, pw, ph, 10);
+    const panelX = pos.x - (pos.align === 'center' ? pw / 2 : 0);
+    const active = snapshot.current === seat && snapshot.phase !== 'settle';
+    glassPanel(ctx, panelX, pos.y, pw, ph, 10);
+    if (active) {
+      const pulse = 0.45 + Math.sin(Date.now() / 220) * 0.18;
+      ctx.save();
+      roundRect(ctx, panelX - 3, pos.y - 3, pw + 6, ph + 6, 12);
+      ctx.strokeStyle = `rgba(255, 213, 74, ${pulse})`;
+      ctx.lineWidth = 3;
+      ctx.shadowColor = 'rgba(255, 213, 74, 0.7)';
+      ctx.shadowBlur = 12;
+      ctx.stroke();
+      ctx.restore();
+    }
 
     const tx = pos.align === 'center' ? pos.x : pos.x + 8;
     drawText(ctx, p.name, tx, pos.y + 10, {
@@ -200,18 +222,73 @@ export default class TableRenderer {
       color: '#aed6f1',
       align: pos.align === 'center' ? 'center' : 'left',
     });
+    if (seat === snapshot.dealer) {
+      const bx = pos.align === 'center' ? panelX + pw - 18 : panelX + pw - 22;
+      ctx.save();
+      ctx.fillStyle = theme.gold;
+      ctx.beginPath();
+      ctx.arc(bx, pos.y + 16, 11, 0, Math.PI * 2);
+      ctx.fill();
+      drawText(ctx, '庄', bx, pos.y + 16, {
+        size: 10,
+        color: '#402000',
+        align: 'center',
+        baseline: 'middle',
+        bold: true,
+      });
+      ctx.restore();
+    }
+
+    const melds = p.melds || [];
+    this._drawOpponentMelds(ctx, melds, pos, panelX, pos.y, pw, ph);
 
     const discards = (p.discards || []).slice(-5);
-    let dx = pos.side === 'right' ? pos.x - 150 : pos.x + pw + 8;
+    let dx = pos.side === 'right' ? pos.x - (melds.length ? 230 : 150) : pos.x + pw + (melds.length ? 104 : 8);
     let dy = pos.y + 8;
     if (pos.side === 'top') {
       dx = W() / 2 - discards.length * 16;
-      dy = pos.y + ph + 8;
+      dy = pos.y + ph + (melds.length ? 44 : 8);
     }
     discards.forEach((t) => {
       TileRenderer.drawTile(ctx, dx, dy, 30, 40, t);
       dx += pos.side === 'top' ? 32 : 0;
       if (pos.side !== 'top') dy += 42;
+    });
+  }
+
+  _drawOpponentMelds(ctx, melds, pos, panelX, panelY, panelW, panelH) {
+    if (!melds.length) return;
+    const list = melds.slice(-3);
+    const tileW = 22;
+    const tileH = 30;
+    const gap = 2;
+    let mx = panelX;
+    let my = panelY + panelH + 8;
+    if (pos.side === 'right') {
+      mx = panelX - 92;
+      my = panelY + panelH - 30;
+    } else if (pos.side === 'left') {
+      mx = panelX + panelW + 8;
+      my = panelY + panelH - 30;
+    } else if (pos.side === 'top') {
+      const total = list.reduce((sum, m) => sum + Math.min(m.tiles?.length || 0, 4) * (tileW + gap) + 8, 0);
+      mx = W() / 2 - total / 2;
+      my = panelY + panelH + 6;
+    }
+
+    list.forEach((m) => {
+      const tiles = (m.tiles || []).slice(0, 4);
+      tiles.forEach((t, i) => {
+        TileRenderer.drawTile(ctx, mx + i * (tileW + gap), my, tileW, tileH, t);
+      });
+      const label = m.type === 'peng' ? '碰' : '杠';
+      drawText(ctx, label, mx + tiles.length * (tileW + gap) + 3, my + tileH / 2, {
+        size: 10,
+        color: theme.goldLight,
+        baseline: 'middle',
+      });
+      if (pos.side === 'top') mx += tiles.length * (tileW + gap) + 24;
+      else my -= tileH + 6;
     });
   }
 

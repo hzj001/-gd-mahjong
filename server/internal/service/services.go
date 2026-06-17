@@ -211,6 +211,7 @@ func (s *RoomService) Ready(ctx context.Context, userID uint64, ready bool) (*mo
 		return nil, errors.New("not in room")
 	}
 	_ = s.repos.Room.SetPlayerReady(roomID, userID, ready)
+	_ = s.cache.DelRoom(ctx, roomID)
 	return s.Info(ctx, roomID)
 }
 
@@ -270,9 +271,23 @@ func (s *RoomService) Start(ctx context.Context, userID uint64) error {
 	if err != nil || room == nil {
 		return errors.New("room not found")
 	}
+	if room.OwnerID != userID {
+		return errors.New("only room owner can start")
+	}
+	if room.Status == "playing" {
+		return errors.New("game already started")
+	}
 	players, _ := s.repos.Room.ListPlayers(roomID)
 	if len(players) < 4 {
 		players, _ = s.rm.FillBots(ctx, room, players)
+	}
+	if len(players) < room.MaxPlayers {
+		return errors.New("not enough players")
+	}
+	for _, p := range players {
+		if !p.IsBot && !p.Ready {
+			return errors.New("all human players must be ready")
+		}
 	}
 	uids := make([]uint64, 0, len(players))
 	for _, p := range players {
@@ -284,7 +299,11 @@ func (s *RoomService) Start(ctx context.Context, userID uint64) error {
 		RoomID: roomID, UserIDs: uids, Status: room.Status,
 		BaseScore: room.BaseScore, RuleID: room.RuleID,
 	})
-	return s.rm.StartGame(roomID)
+	if err := s.rm.StartGame(roomID); err != nil {
+		return err
+	}
+	_ = s.cache.DelRoom(ctx, roomID)
+	return nil
 }
 
 func (s *RoomService) RankList(limit int) ([]model.UserProfileDTO, error) {

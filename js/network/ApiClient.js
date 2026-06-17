@@ -344,6 +344,21 @@ export default class ApiClient extends Emitter {
     return { code: 0 };
   }
 
+  async enterPlayingRoom() {
+    if (this.useMock) {
+      return { code: 0 };
+    }
+    try {
+      await this._connectWs();
+      const waitSync = this._waitGameStart();
+      await waitSync;
+      if (this.room) this.room.status = 'playing';
+      return { code: 0 };
+    } catch (e) {
+      return { code: -1, message: e.message || '进入对局失败' };
+    }
+  }
+
   _waitGameStart() {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
