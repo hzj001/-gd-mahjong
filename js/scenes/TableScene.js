@@ -3,6 +3,7 @@ import TableRenderer from '../render/TableRenderer';
 import { WsMsgType } from '../network/endpoints';
 import VoiceManager from '../runtime/VoiceManager';
 import { W, H, glassPanel, drawText, drawGlowText } from '../render/drawUtil';
+import { tileLabel } from '../constants/tiles';
 import theme from '../render/theme';
 
 export default class TableScene extends BaseScene {
@@ -17,6 +18,7 @@ export default class TableScene extends BaseScene {
     this.actionBar = [];
     this.pendingReact = false;
     this.settleData = null;
+    this.roundEndData = null;
     this.voice = null;
     this.paused = false;
     this.reconnecting = false;
@@ -28,6 +30,7 @@ export default class TableScene extends BaseScene {
     this.voice = new VoiceManager(GameGlobal.musicManager);
     this.selectedIndex = -1;
     this.settleData = null;
+    this.roundEndData = null;
     this.reconnecting = false;
     const api = this.databus.api;
     api.on('sync', this._onSync, this);
@@ -76,10 +79,14 @@ export default class TableScene extends BaseScene {
   _onWs = (msg) => {
     if (msg.type === WsMsgType.SETTLE) {
       this.settleData = msg;
+      this.roundEndData = null;
       const tag = msg.isZimo ? '自摸' : '点炮';
       this._showToast(`${tag}胡牌！${msg.totalFan} 番`);
       GameGlobal.musicManager?.playSfx('win');
       this.voice?.onAction('win');
+      (msg.fans || []).slice(0, 3).forEach((f, i) => {
+        setTimeout(() => this.voice?.onFan(f.name), 220 * i);
+      });
       Promise.all([this.databus.api.refreshProfile(), this.databus.api.getStats()]).then(
         ([u]) => {
           if (u) this.databus.user = u;
@@ -96,7 +103,13 @@ export default class TableScene extends BaseScene {
       this._showToast('请选择操作');
     }
     if (msg.type === WsMsgType.ROUND_END) {
-      this._showToast('流局');
+      this.settleData = null;
+      this.roundEndData = {
+        draw: msg.draw !== false,
+        wallRemaining: this.databus.snapshot?.wallRemaining ?? 0,
+        players: msg.players || this.databus.snapshot?.players || [],
+      };
+      this._showToast('流局，本局无人胡牌');
     }
     if (msg.type === 'game_pause') {
       this.paused = true;
@@ -114,6 +127,9 @@ export default class TableScene extends BaseScene {
     this.databus.snapshot = api.getSnapshot();
     this.paused = api.isPaused();
     const acts = api.getAvailableActions();
+    const snap = this.databus.snapshot;
+    const hand = snap?.players?.[snap.humanSeat]?.hand || [];
+    if (this.selectedIndex >= hand.length) this.selectedIndex = -1;
     if (acts.react.length) {
       this.actionBar = acts.react;
       this.pendingReact = true;
@@ -151,6 +167,7 @@ export default class TableScene extends BaseScene {
       paused: this.paused,
     });
     if (this.settleData) this._renderSettle(ctx);
+    if (this.roundEndData) this._renderRoundEnd(ctx);
     if (this.reconnecting) this._renderReconnect(ctx);
   }
 
@@ -219,6 +236,43 @@ export default class TableScene extends BaseScene {
     });
   }
 
+  _renderRoundEnd(ctx) {
+    const s = this.roundEndData;
+    const w = W();
+    const h = H();
+    ctx.fillStyle = 'rgba(0,0,0,0.68)';
+    ctx.fillRect(0, 0, w, h);
+
+    const pw = Math.min(380, w * 0.82);
+    const ph = 240;
+    const px = (w - pw) / 2;
+    const py = (h - ph) / 2;
+    glassPanel(ctx, px, py, pw, ph, 16);
+    drawGlowText(ctx, '流局', w / 2, py + 38, 24);
+    drawText(ctx, '牌墙摸尽，本局无人胡牌', w / 2, py + 72, {
+      size: 14,
+      color: theme.goldLight,
+      align: 'center',
+    });
+    drawText(ctx, `剩余牌墙 ${s.wallRemaining ?? 0} 张`, w / 2, py + 102, {
+      size: 13,
+      color: 'rgba(255,255,255,0.7)',
+      align: 'center',
+    });
+    (s.players || []).slice(0, 4).forEach((p, i) => {
+      drawText(ctx, `${p.name || p.nickName || `玩家${i + 1}`}  ${p.score >= 0 ? '+' : ''}${p.score || 0}`, w / 2, py + 132 + i * 20, {
+        size: 12,
+        color: '#bdc3c7',
+        align: 'center',
+      });
+    });
+    drawText(ctx, '点击任意处开始下一局', w / 2, py + ph - 28, {
+      size: 13,
+      color: 'rgba(255,255,255,0.55)',
+      align: 'center',
+    });
+  }
+
   _confirmAbort() {
     this.confirmDialog.show({
       title: '中止本局',
@@ -272,8 +326,9 @@ export default class TableScene extends BaseScene {
     const x = t.clientX;
     const y = t.clientY;
 
-    if (this.settleData) {
+    if (this.settleData || this.roundEndData) {
       this.settleData = null;
+      this.roundEndData = null;
       this.databus.api.nextRound();
       this._refresh();
       return;
@@ -312,7 +367,7 @@ export default class TableScene extends BaseScene {
       const snap = this.databus.snapshot;
       const hand = snap?.players[snap.humanSeat]?.hand;
       if (hand && this.actionBar.includes('discard')) {
-        this._doDiscard(hand[idx]);
+        this._showToast(`已选择 ${tileLabel(hand[idx])}，点击「出牌」确认`, 1200);
       }
     }
   }

@@ -1,6 +1,6 @@
 import BaseScene from './BaseScene';
 import Button from '../ui/Button';
-import { W, H, drawText, glassPanel, drawGlowText } from '../render/drawUtil';
+import { W, H, drawText, glassPanel, drawGlowText, roundRect } from '../render/drawUtil';
 import BackgroundArt from '../render/BackgroundArt';
 import theme from '../render/theme';
 
@@ -102,24 +102,25 @@ export default class LobbyScene extends BaseScene {
 
     const u = this.databus.user;
     if (u) {
-      glassPanel(ctx, w * 0.08, h * 0.58, w * 0.36, 80, 12);
-      drawText(ctx, u.nickName, w * 0.26, h * 0.62, {
+      const cardX = w * 0.08;
+      const cardY = h * 0.56;
+      const cardW = w * 0.36;
+      glassPanel(ctx, cardX, cardY, cardW, 94, 12);
+      this._drawAvatar(ctx, u, cardX + 42, cardY + 47, 28);
+      drawText(ctx, u.nickName, cardX + 84, cardY + 18, {
         size: 16,
         color: '#fff',
-        align: 'center',
         bold: true,
       });
-      drawText(ctx, `${u.rank}  ·  金币 ${u.coin}`, w * 0.26, h * 0.68, {
+      drawText(ctx, `${u.rank}  ·  金币 ${u.coin}`, cardX + 84, cardY + 44, {
         size: 12,
         color: theme.gold,
-        align: 'center',
       });
       if (u.rankScore != null) {
         const wl = u.wins != null ? `  胜${u.wins}负${u.losses || 0}` : '';
-        drawText(ctx, `积分 ${u.rankScore}${wl}`, w * 0.26, h * 0.74, {
+        drawText(ctx, `积分 ${u.rankScore}${wl}`, cardX + 84, cardY + 68, {
           size: 11,
           color: 'rgba(255,255,255,0.55)',
-          align: 'center',
         });
       }
     } else if (this.databus.loginError) {
@@ -149,6 +150,32 @@ export default class LobbyScene extends BaseScene {
       color: statusColor,
       align: 'right',
     });
+  }
+
+  _drawAvatar(ctx, user, cx, cy, r) {
+    ctx.save();
+    const grad = ctx.createLinearGradient(cx - r, cy - r, cx + r, cy + r);
+    grad.addColorStop(0, '#2471a3');
+    grad.addColorStop(1, '#1e8449');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = theme.goldLight;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    roundRect(ctx, cx - r * 0.58, cy + r * 0.12, r * 1.16, r * 0.42, 6);
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.fill();
+    drawText(ctx, (user.nickName || '玩').slice(0, 1), cx, cy - 1, {
+      size: 18,
+      color: '#fff',
+      align: 'center',
+      baseline: 'middle',
+      bold: true,
+      shadow: true,
+    });
+    ctx.restore();
   }
 
   async onTouchEnd(e) {
