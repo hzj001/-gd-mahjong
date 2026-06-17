@@ -1,0 +1,35 @@
+# 依赖
+node_modules/
+
+# Go 编译产物
+server/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# 环境与密钥
+server/.env
+.env
+*.local
+
+# 微信开发者工具
+project.private.config.json
+
+# 日志
+*.log
+logs/
+
+# IDE / 系统
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# 临时
+tmp/
+temp/
+*.tmp

@@ -1,0 +1,24 @@
+server:
+  addr: ":8080"
+  mode: debug # debug | release
+
+mysql:
+  dsn: "root:root123@tcp(127.0.0.1:3306)/gd_mahjong?charset=utf8mb4&parseTime=True&loc=Local"
+
+redis:
+  addr: "127.0.0.1:6379"
+  password: ""
+  db: 0
+
+jwt:
+  secret: "change-me-in-production"
+  expire_hours: 168
+
+wechat:
+  app_id: ""
+  app_secret: ""
+  mock_login: true # 开发环境 true：任意 code 可登录
+
+game:
+  draw_timeout_sec: 15
+  max_players: 4
